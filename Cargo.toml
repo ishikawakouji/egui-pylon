@@ -1,0 +1,14 @@
+[package]
+edition = "2021"
+name = "egui-pylon"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1"
+eframe = {features = [
+  "__screenshot", # __screenshot is so we can dump a screenshot using EFRAME_SCREENSHOT_TO
+]}
+env_logger = "0.10"
+pylon-cxx = "0.3.4"
