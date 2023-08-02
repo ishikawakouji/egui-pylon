@@ -10,5 +10,7 @@ anyhow = "1"
 eframe = {features = [
   "__screenshot", # __screenshot is so we can dump a screenshot using EFRAME_SCREENSHOT_TO
 ]}
+#egui_extras = {"0.22.0" , features = ["image"]}
 env_logger = "0.10"
+log = "0.4.19"
 pylon-cxx = "0.3.4"

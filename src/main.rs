@@ -1,16 +1,20 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-//const COUNT_IMAGES_TO_GRAB: u32 = 10;
+//const COUNT_IMAGES_TO_GRAB: u32 = 1000;
 
-use eframe::{egui, epaint::FontFamily};
+use eframe::{
+    egui,
+    epaint::{ColorImage, FontFamily},
+};
 use egui::{FontData, FontDefinitions};
+use log::debug;
 use pylon_cxx::{InstantCamera, Pylon};
 
 fn main() -> Result<(), eframe::Error> {
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
 
     let options = eframe::NativeOptions {
-        initial_window_size: Some(egui::vec2(320.0, 240.0)),
+        initial_window_size: Some(egui::vec2(1300.0, 1000.0)),
         ..Default::default()
     };
 
@@ -46,9 +50,16 @@ fn setup_jp_fonts(ctx: &egui::Context) {
 
 struct GrabApp<'cam> {
     // メモリを開放して欲しい順？にフィールドを記述
+    //texture: Option<egui::TextureHandle>,
+    image_buffer: Vec<u8>,
+    width: u32,
+    height: u32,
+    pixel_format: String,
+    model_name: String,
     camera: InstantCamera<'cam>,
     #[allow(dead_code)]
     pylon: Pylon,
+    init: bool,
 }
 
 impl<'a, 'cam> GrabApp<'cam> {
@@ -68,23 +79,106 @@ impl<'a, 'cam> GrabApp<'cam> {
             .create_first_device()
             .unwrap();
 
-        Self { camera, pylon }
+        Self {
+            //texture: None,
+            image_buffer: vec![0],
+            width: 0,
+            height: 0,
+            pixel_format: "unknown".to_string(),
+            model_name: "none".to_string(),
+            camera,
+            pylon,
+            init: false,
+        }
     }
 }
 
 impl<'cam> eframe::App for GrabApp<'cam> {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui: &mut egui::Ui| {
-            //pylon
-            let dev_info = self
-                .camera
-                .device_info()
-                .model_name()
-                .unwrap_or("default".to_string());
+            //pylon init
+            if !self.init {
+                self.init = true;
 
-            ui.heading("My egui Application");
+                self.model_name = self
+                    .camera
+                    .device_info()
+                    .model_name()
+                    .unwrap_or("default".to_string());
 
-            ui.label(dev_info);
+                let _res = self.camera.open();
+
+                let _res = self
+                    .camera
+                    .start_grabbing(&pylon_cxx::GrabOptions::default()); //.count(COUNT_IMAGES_TO_GRAB));
+
+                match self.camera.node_map().enum_node("PixcelFormat") {
+                    Ok(node) => {
+                        self.pixel_format = node.value().unwrap_or("not readable".to_string())
+                    }
+                    Err(e) => eprintln!("Ignoring error getting PixelFormat node: {}", e),
+                }
+            }
+
+            let mut grabbed = false;
+
+            // grab
+            let mut grab_result = pylon_cxx::GrabResult::new().unwrap();
+            if self.camera.is_grabbing() {
+                let _res = self.camera.retrieve_result(
+                    5000,
+                    &mut grab_result,
+                    pylon_cxx::TimeoutHandling::ThrowException,
+                );
+
+                if grab_result.grab_succeeded().unwrap_or(false) {
+                    self.width = grab_result.width().unwrap_or(0);
+                    self.height = grab_result.height().unwrap_or(0);
+                }
+
+                if grab_result.buffer_size().unwrap_or(0) > 0 {
+                    let image_buffer = grab_result.buffer().unwrap();
+                    self.image_buffer.clear();
+                    self.image_buffer.extend_from_slice(image_buffer);
+                }
+
+                grabbed = true;
+            }
+
+            ui.heading("My egui + basler pylon Application");
+
+            ui.label(format!("model name: {}", self.model_name));
+            ui.label(format!("pixel format: {}", self.pixel_format));
+            ui.label(format!("size: {} x {}", self.width, self.height));
+            //ui.label(format!("fist pixel: {}", self.image_buffer[0]));
+
+            debug!(
+                "size {}x{}, len {}",
+                self.width,
+                self.height,
+                self.image_buffer.len()
+            );
+
+            if grabbed {
+                // gray to RGBa
+                let mut color_buffer: Vec<u8> = Vec::new();
+                let mut v0 = vec![0_u8; self.image_buffer.len()];
+                color_buffer.append(&mut self.image_buffer.clone());
+                color_buffer.append(&mut self.image_buffer.clone());
+                color_buffer.append(&mut self.image_buffer.clone());
+                color_buffer.append(&mut v0);
+
+                let texture = &ui.ctx().load_texture(
+                    "camera",
+                    ColorImage::from_rgba_unmultiplied(
+                        [self.width as _, self.height as _],
+                        color_buffer.as_slice(),
+                    ),
+                    Default::default(),
+                );
+
+                ui.image(texture, texture.size_vec2());
+            }
         });
     }
 }
