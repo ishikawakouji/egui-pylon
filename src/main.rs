@@ -99,6 +99,8 @@ impl<'cam> eframe::App for GrabApp<'cam> {
         debug!("update");
 
         egui::CentralPanel::default().show(ctx, |ui: &mut egui::Ui| {
+            ui.ctx().request_repaint();
+
             //pylon init
             if !self.init {
                 self.init = true;
