@@ -7,6 +7,7 @@ use eframe::{
     epaint::{ColorImage, FontFamily},
 };
 use egui::{FontData, FontDefinitions};
+use itertools::{izip, Itertools};
 use log::debug;
 use pylon_cxx::{InstantCamera, Pylon};
 
@@ -95,6 +96,8 @@ impl<'a, 'cam> GrabApp<'cam> {
 
 impl<'cam> eframe::App for GrabApp<'cam> {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        debug!("update");
+
         egui::CentralPanel::default().show(ctx, |ui: &mut egui::Ui| {
             //pylon init
             if !self.init {
@@ -150,7 +153,7 @@ impl<'cam> eframe::App for GrabApp<'cam> {
             ui.label(format!("model name: {}", self.model_name));
             ui.label(format!("pixel format: {}", self.pixel_format));
             ui.label(format!("size: {} x {}", self.width, self.height));
-            //ui.label(format!("fist pixel: {}", self.image_buffer[0]));
+            ui.label(format!("fist pixel: {}", self.image_buffer[0]));
 
             debug!(
                 "size {}x{}, len {}",
@@ -161,12 +164,17 @@ impl<'cam> eframe::App for GrabApp<'cam> {
 
             if grabbed {
                 // gray to RGBa
-                let mut color_buffer: Vec<u8> = Vec::new();
-                let mut v0 = vec![0_u8; self.image_buffer.len()];
-                color_buffer.append(&mut self.image_buffer.clone());
-                color_buffer.append(&mut self.image_buffer.clone());
-                color_buffer.append(&mut self.image_buffer.clone());
-                color_buffer.append(&mut v0);
+                let v255 = vec![255_u8; self.image_buffer.len()];
+
+                let color_buffer = izip!(
+                    &self.image_buffer,
+                    &self.image_buffer,
+                    &self.image_buffer,
+                    &v255
+                )
+                .map(|(&r, &g, &b, &a)| [r, g, b, a])
+                .collect_vec()
+                .concat();
 
                 let texture = &ui.ctx().load_texture(
                     "camera",

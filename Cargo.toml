@@ -12,5 +12,6 @@ eframe = {features = [
 ]}
 #egui_extras = {"0.22.0" , features = ["image"]}
 env_logger = "0.10"
+itertools = "0.11.0"
 log = "0.4.19"
 pylon-cxx = "0.3.4"
